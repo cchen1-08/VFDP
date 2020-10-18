@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="description" content="Visual Analysis of Flight Delay and Propagation on a Geographical Map">
+
+    <title>VFDP - Visual Analysis of Flight Delay and Propagation on a Geographical Map</title>
+
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jquery-ui.min.css') }}">
+
+    <script src="{{ url_for('static',filename='js/lib/jquery/jquery-3.3.1.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/lib/jquery/jquery-ui.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/lib/jquery/jquery.cookie.js') }}"></script>
+
+    <script src="https://cdn.bootcss.com/underscore.js/1.9.0/underscore-min.js"></script>
+
+    <script src="{{ url_for('static',filename='js/lib/d3/d3.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/lib/d3/d3-contour.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/lib/d3/d3-scale-chromatic.min.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/lib/d3/d3-interpolate.min.js') }}"></script>
+
+    <script src="{{ url_for('static',filename='js/lib/leaflet/leaflet.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/lib/leaflet/HeatLayer.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/lib/leaflet/simpleheat.js') }}"></script>
+
+    <script src="{{ url_for('static',filename='js/LeafletMapMgr.js') }}"></script>
+
+    <script src="{{ url_for('static',filename='js/Common/CommonDefine.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/Common/LabelingBlobs.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/Common/MathFuncUtility.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/Common/MatlabFuncUtility.js') }}"></script>
+
+    <script src="{{ url_for('static',filename='js/GCommonFuncUtility.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/StreamMapManager.js') }}"></script>
+
+    <script src="{{ url_for('static',filename='js/util.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/backendInterface.js') }}"></script>
+
+    <script src="{{ url_for('static',filename='js/global.js') }}"></script>
+
+    <script src="{{ url_for('static',filename='js/mapComponents/IBaseComponent.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/mapComponents/DelayHeat.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/mapComponents/HeatTransField.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/mapComponents/AirportMarker.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/mapComponents/ProbGlyph.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/mapComponents/HeatContour.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/mapComponents/HeatContourSVG.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/mapComponents/HeatContourCanvas.js') }}"></script>
+
+
+    <script src="{{ url_for('static',filename='js/FlightMap.js') }}"></script>
+    <!-- <script src="{{url_for('static',filename='js/FlightMapGroup.js')}}"></script> -->
+    <script src="{{ url_for('static',filename='js/LineDrawer.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/timeView.js') }}"></script>
+
+    <script src="{{ url_for('static',filename='js/contourPolygons.js') }}"></script>
+
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        .hidden-position {
+            position: absolute;
+            left: -5000px;
+        }
+
+        .mainMapContainer {
+            position: absolute;
+            z-index: 1;
+        }
+
+        .deputyMapContainer {
+            /*position: absolute;*/
+        }
+
+        .heatContour {
+            z-index: 3;
+        }
+
+        #container {
+            margin: 5px;
+            display: flex;
+        }
+
+        #content_main {
+            order: 1;
+        }
+
+        #flightMap {
+            border: solid darkgray 1px;
+        }
+
+        #timeView {
+            border: solid darkgray 1px;
+        }
+
+        #control {
+            order: 0;
+            max-width: 200px;
+            display: flex;
+            align-content: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .heatTransField {
+            z-index: 5;
+        }
+
+        .ctrl_group {
+            padding: 5px;
+            border: solid darkgray 1px;
+        }
+
+        .ctrl_group_title {
+            font-weight: bold;
+        }
+
+        #cb_airports {
+            /*display: flex;*/
+            /*flex-wrap: wrap;*/
+            /*justify-content: space-between;*/
+        }
+
+        #cb_airports label {
+            width: 55px;
+
+        }
+
+        #ctrl_layers {
+            width: 200px;
+            -webkit-box-sizing: border-box;
+            -moz-box-sizing: border-box;
+            box-sizing: border-box;
+        }
+
+        .ctrl_layers_switch {
+            width: 140px
+        }
+
+        #ctrl_anim {
+            width: 200px;
+            -webkit-box-sizing: border-box;
+            -moz-box-sizing: border-box;
+            box-sizing: border-box;
+        }
+
+        #ctrl_heat {
+            width: 200px;
+        }
+
+        .txt_group {
+            margin: 10px 0 10px 0;
+        }
+
+        #ctrl_heat div {
+            width: 100%;
+        }
+
+        #ctrl_heat input {
+            float: right;
+            width: 31%;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="container">
+
+        <div id="content_main">
+            <div id="flightMap"></div>
+            <div id="timeView"></div>
+        </div>
+
+        <div id="control">
+            <div class="ctrl_group" id="ctrl_select">
+                <span class="ctrl_group_title">Data Selection</span>
+                <form onsubmit="return false">
+                    <div class="cb_group" id="cb_airports"></div>
+
+                    <div class="txt_group">
+                        <span>oriDatetimeRange</span>
+                        <div>
+                            <input type="text" name="oriDateStart" maxlength="10" size="12" list="dateList">
+                            <input type="text" name="oriDateEnd" maxlength="10" size="12" list="dateList">
+                        </div>
+
+                        <span>endDatetimeRange</span>
+                        <div>
+                            <input type="text" name="endDateStart" maxlength="10" size="12" list="dateList">
+                            <input type="text" name="endDateEnd" maxlength="10" size="12" list="dateList">
+                        </div>
+                    </div>
+                    <button onclick="setIptPreDay()">preDay</button>
+                    <button onclick="setIptNextDay()">nextDay</button>
+
+                    <datalist id="dateList"></datalist>
+                    <button class="btn_jq" onclick="(function() {formSubmit()})()">Query</button>
+                    <button class="btn_jq" onclick="(function() {render()})()">Rerender</button>
+                </form>
+            </div>
+
+            <div class="ctrl_group" id="ctrl_layers">
+                <span class="ctrl_group_title">Layers</span>
+
+                <div class="jq_ctrl_group">
+                    <label class="ctrl_layers_switch" for="layer_heatTransField">
+                        <input type="checkbox" id="layer_heatTransField">
+                        heatTransField
+                    </label>
+                    <button onclick="(function() {renderHeatTransField()})()">*</button>
+                </div>
+                <!--<div class="jq_ctrl_group">-->
+                <!--<label class="ctrl_layers_switch" for="layer_airportMarker">-->
+                <!--<input type="checkbox" id="layer_airportMarker">-->
+                <!--airportMarker-->
+                <!--</label>-->
+                <!--<button onclick="(function() {renderAirportMarker()})()">*</button>-->
+                <!--</div>-->
+                <div class="jq_ctrl_group">
+                    <label class="ctrl_layers_switch" for="layer_heatContour">
+                        <input type="checkbox" id="layer_heatContour">
+                        heatContour
+                    </label>
+                    <button onclick="(function() {renderHeatContour()})()">*</button>
+                </div>
+
+            </div>
+
+            <div class="ctrl_group" id="ctrl_anim">
+                <span class="ctrl_group_title">Animation</span>
+                <button onclick="(function(){animHour()})()">Hour</button>
+                <button onclick="(function(){animDay()})()">Day</button>
+                <button onclick="(function(){stopAnimation()})()">stop/reset</button>
+            </div>
+
+            <div class="ctrl_group" id="ctrl_heat">
+                <div style="display: inline-block;">
+                    <label for="txt_heatMax">heatLayer max</label>
+                    <input type="number" id="txt_heatMax" value="3000" min="0" max="1000000">
+                </div>
+
+                <div style="display: inline-block;">
+                    <label for="txt_numMaxWeaveColors">max weave colors</label>
+                    <input type="number" id="txt_numMaxWeaveColors" value="-1" min="-1" max="16">
+                </div>
+
+                <div style="display: inline-block;">
+                    <label for="txt_sizeWeave">size weave</label>
+                    <input type="number" id="txt_sizeWeave" value="1" min="1" max="1000">
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script type="text/javascript">
+        let mapURLOptions = {
+            pathWorkerGenTransField: '{{url_for("static",filename="js/WorkerGenHeatmapField.js")}}',
+            pathWorkerStreamMap: '{{url_for("static",filename="js/WorkerStreamMap.js")}}',
+
+            pathMarkerBig: '{{url_for("static", filename="img/marker3.png")}}',
+            pathMarkerSmall: '{{url_for("static", filename="img/markerS.png")}}',
+        };
+    </script>
+
+    <script src="{{url_for("static",filename="js/main.js")}}"></script>
+
+</body>
+
+</html>

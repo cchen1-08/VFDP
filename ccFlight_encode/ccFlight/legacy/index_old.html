@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>heatTrans</title>
+
+    <!-- <script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js" integrity="sha512-lInM/apFSqyy1o6s89K4iQUKg6ppXEgsVxT35HbzUupEVRh2Eu9Wdl4tHj7dZO0s1uvplcYGmt3498TtHq+log=="
+        crossorigin=""></script> -->
+
+    <script src="{{url_for('static',filename='js/jquery-3.3.1.min.js')}}"></script>
+
+    <script src="{{url_for('static',filename='js/d3.js')}}"></script>
+    <script src="{{url_for('static',filename='js/d3-contour.min.js')}}"></script>
+    <script src="{{url_for('static',filename='js/d3-scale-chromatic.min.js')}}"></script>
+    <script src="{{url_for('static',filename='js/d3-interpolate.min.js')}}"></script>
+
+    <script src="{{url_for('static',filename='js/leaflet/leaflet.js')}}"></script>
+    <script src="{{url_for('static',filename='js/leaflet/simpleheat.js')}}"></script>
+    <script src="{{url_for('static',filename='js/leaflet/HeatLayer.js')}}"></script>
+
+    <script src="{{url_for('static',filename='lib/LeafletMapMgr.js')}}"></script>
+
+    <script src="{{url_for('static',filename='js/circos.js')}}"></script>
+    <script src="{{url_for('static',filename='lib/CircosLayer.js')}}"></script>
+
+    <script src="{{url_for('static',filename='lib/Common/CommonDefine.js')}}"></script>
+    <script src="{{url_for('static',filename='lib/GCommonFuncUtility.js')}}"></script>
+
+    <script src="{{url_for('static',filename='js/util.js')}}"></script>
+    <script src="{{url_for('static',filename='lib/LineDrawer.js')}}"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css" integrity="sha512-M2wvCLH6DSRazYeZRIm1JnYyh22purTM+FDB5CsyxtQJYeKq83arPe5wgbNmcFXGqiSH2XR8dT/fJISVA1r/zQ=="
+        crossorigin="" />
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map0 {
+            position: absolute;
+            z-index: 2;
+        }
+
+        #map1 {
+            position: absolute;
+            z-index: 1;
+        }
+
+        #canvasField {
+            position: absolute;
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        #ctrlPanel {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-width: 1px;
+            border-color: black;
+            border-radius: 5px;
+            z-index: 10;
+        }
+
+        #svgContour {
+            position: absolute;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .airportCircos {
+            position: absolute;
+            z-index: 5;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ctrlPanel">
+        <button onclick="switchLayout()">switch layout(for test)</button>
+        <br>
+        <form method="GET" id="form_heat">
+            <label for="sel_airport"></label>
+            <select name="airport" id="sel_airport"></select>
+            <label for="type_flight"></label>
+            <select name="type_flight" id="sel_type_flight">
+                <option value="null"></option>
+                <option value=0>Arrival</option>
+                <option value=1>Departure</option>
+            </select>
+            <select name="date_ori" id="sel_date_ori"></select>
+            <select name="date_end" id="sel_date_end"></select>
+            <br>
+            <input type="submit" id="btn_submit" name="submit">
+        </form>
+    </div>
+    <div id="map0"></div>
+    <div id="map1"></div>
+    <canvas id="canvasField"></canvas>
+    <script type="text/javascript">
+        // start: data test
+        let iptAirport = null,
+            iptOriDatetimeRange = null,
+            iptEndDatetimeRange = null;
+
+        // 所有机场，除去厦门和郑州
+        // iptAirport = ['ZBAA', 'ZUUU', 'ZSSS', 'ZLXY',
+        //     'ZGGG', 'ZPPP', 'ZUCK', 'ZSPD', 'ZGSZ'
+        // ];
+        // iptOriDatetimeRange = '20171223'
+        // iptEndDatetimeRange = '20171224'
+
+        // 上海厦门比较
+        // iptAirport = ['ZSSS']
+        iptAirport = ['ZSAM']
+        iptOriDatetimeRange = '20180207'
+        iptEndDatetimeRange = '20180209'
+        // iptOriDatetimeRange = ['2018020700', '2018020711']
+        // iptEndDatetimeRange = ['2018020700', '2018020715']
+        // iptOriDatetimeRange = ['2018020700', '2018020715']
+        // iptEndDatetimeRange = ['2018020700', '2018020720']
+
+        // 机场群
+        // iptAirport = ['ZSSS', 'ZSPD'] // 虹桥 浦东
+        // iptAirport = ['ZGGG','ZGSZ'] // 广州 深圳
+        // iptAirport = ['ZUCK','ZUUU'] // 重庆 成都
+        // iptOriDatetimeRange = ['2018010200', '2018010215']
+        // iptEndDatetimeRange = ['2018010200', '2018010224']
+
+        // 郑州单独
+        // iptAirport = ['ZHCC'] 
+        // iptOriDatetimeRange = '20180207'
+        // iptEndDatetimeRange = '20180208'
+
+        // 东南西北 同一天 各取一个
+        // iptAirport = ['ZSPD','ZPPP','ZGSZ','ZLXY','ZBAA']   // 上海 东 昆明 西南 深圳 南 西安 西 北京 北
+        // iptOriDatetimeRange = '20180201'
+        // iptEndDatetimeRange = '20180202'
+
+        // 春运 0201 - 0207
+        // iptAirport = ['ZBAA', 'ZUUU', 'ZSSS', 'ZLXY',
+        //     'ZGGG', 'ZPPP', 'ZUCK', 'ZSPD', 'ZGSZ', 'ZSAM', 'ZHCC'
+        // ];
+        // iptOriDatetimeRange = '20180207'
+        // iptEndDatetimeRange = '20180208'
+
+        // end: data test
+
+        let widMap = window.innerWidth,
+            heiMap = window.innerHeight;
+
+        widMap = 600;
+        heiMap = 600;
+
+        console.log('window.innerHeight, innerWidth', widMap, heiMap)
+        let map0 = $('#map0'),
+            map1 = $('#map1'),
+            c = $('#canvasField');
+
+        let form_heat = $('#form_heat');
+        let selAirport = $('#sel_airport'),
+            selTypeFlight = $('#sel_type_flight'),
+            selDateOri = $('#sel_date_ori'),
+            selDateEnd = $('#sel_date_end');
+
+        let curAirports = null,
+            curOriDatetimeRange = null,
+            curEndDatetimeRange = null,
+            curZoom = null,
+            curDataOri = null,
+            curDataEnd = null;
+
+        let widCircos = 200,
+            heiCircos = 200;
+
+        // 设置地图和绘制场canvas的长宽，必须都相同
+        map0.width(widMap);
+        map0.height(heiMap);
+        map1.width(widMap);
+        map1.height(heiMap);
+        c.width(widMap);
+        c.height(heiMap);
+
+        // canvas除了style的长宽，还要设定自身的长宽
+        let canvasField = c[0]; // DOM object
+        canvasField.width = widMap;
+        canvasField.height = heiMap;
+        let ctxCanvasField = canvasField.getContext('2d');
+
+        let defaultMapOption = {
+            center: [31, 120.495],
+            zoom: 4,
+        };
+        let defaultTileApi =
+            'https://api.mapbox.com/styles/v1/minititan/cj8plge6l9se72ss1hir401wz/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWluaXRpdGFuIiwiYSI6ImNqOHBqaDJiMTBnbGEycXF1bWQ4MGFnemQifQ.6JK0ig6bhZNqszBo1-eqiQ';
+        let defaultTileOption = {
+            maxZoom: 8,
+            minZoom: 3,
+            id: 'mapbox.streets',
+        };
+
+        let defaultHeatmapStyle = {
+            radius: 20,
+            opacity: 1,
+            maxZoom: 8,
+            minZoom: 3,
+            max: 4000,
+        };
+
+        let mapMgr0 = new LeafletMapMgr();
+        let mapInstance0 = mapMgr0.init("map0", defaultMapOption, defaultTileApi, defaultTileOption);
+        mapInstance0.on('zoomend', onMapChangeView);
+        mapInstance0.on('dragend', onMapChangeView);
+
+        let mapMgr1 = new LeafletMapMgr();
+        let mapInstance1 = mapMgr1.init("map1", defaultMapOption, defaultTileApi, defaultTileOption);
+
+        // start: contour
+        let svgContour = d3.select(mapInstance0.getPanes().overlayPane).append("svg")
+            .attr('class', 'svgContour'),
+            gContour = svgContour.append("g").attr("class", "leaflet-zoom-hide")
+            .attr("fill", "none")
+            .attr("stroke", "lightGray")
+            .attr("stroke-linejoin", "round")
+            .attr('fill-opacity', 0.3);
+        svgContour.attr('width', widMap);
+        svgContour.attr('height', heiMap);
+        let lastSvgOffset = [0, 0];
+
+        let thresholdsContours = d3.range(1, 6).map(function (d) {
+            return d * 50;
+        })
+        let contours = d3.contours()
+            .size([widMap, heiMap])
+            .thresholds(thresholdsContours);
+        var colorContours = d3.scaleLog()
+            .domain(d3.extent(thresholdsContours))
+            .interpolate(function () {
+                return d3.interpolateYlGnBu;
+            });
+        // end: contour
+
+        initCtrlForm();
+        let workerHeatmapField = initWorkerHeatmapField();
+
+
+
+        getDataHeatmap(iptAirport, iptOriDatetimeRange, iptEndDatetimeRange);
+
+        // ============================== 
+        // start: functions definition
+        // ============================== 
+        function switchLayout() {
+            let currentLayout = map0.css('position');
+            if (currentLayout === 'relative') {
+                map0.css('position', 'absolute');
+                map1.css('position', 'absolute');
+                c.css('position', 'absolute');
+                svgContour.attr('position', 'absolute');
+            } else if (currentLayout === 'absolute') {
+                map0.css('position', 'relative');
+                map1.css('position', 'relative');
+                c.css('position', 'relative');
+                svgContour.attr('position', 'relative');
+            }
+        }
+
+        function refreshHeatmapLayer(dataOri, dataEnd) {
+            console.log('refreshHeatmapLayer')
+            mapMgr0.addHeatmap(packData(dataOri), 'heatmapOri', defaultHeatmapStyle)
+            mapMgr1.addHeatmap(packData(dataEnd), 'heatmapEnd', defaultHeatmapStyle)
+        }
+
+        function refreshHeatmapField() {
+            console.log('refreshHeatmapField')
+            ctxCanvasField.clearRect(0, 0, canvasField.width, canvasField.height);
+            genHeatmapField(curZoom); // 用两个热力图计算变化场
+        }
+
+        // function refreshCircos(mapMgr, airport) {
+        //     console.log('refreshCircos', airport)
+        //     // 给前层地图加上环图层
+        //     $.get({
+        //         url: '/heatTrans/data/circos/' + curAirports,
+        //         success: function (res) {
+        //             console.log('circos data', res);
+
+        //             let probs = res[0],
+        //                 probsVisiUnder = res[1],
+        //                 airportLoc = res[2];
+
+        //             // 给前层地图加上环图层
+        //             let circosData = {
+        //                 circosSize: [widCircos, heiCircos],
+        //                 probs: probs,
+        //                 probsVisiUnder: probsVisiUnder,
+        //                 airportLoc: airportLoc,
+        //             };
+        //             mapMgr.initCircoslayer(location, circosData);
+
+        //             console.log('circos data apply done')
+        //         }
+        //     });
+        // }
+
+        // 添加机场marker
+        function refreshMarkers(epLocs) {
+            console.log('refreshMarkers')
+            mapMgr0.layer('markerAirports');
+            let markers = [];
+            for (let airport in epLocs) {
+                let latlng = epLocs[airport];
+                if (latlng !== null && curAirports.indexOf(airport) !== -1) {
+                    markers.push(L.marker(latlng, {
+                        title: airport,
+                        icon: L.icon({
+                            iconUrl: '{{url_for("static", filename="img/markerS.png")}}',
+                            iconAnchor: [2, 2],
+                        })
+                    }))
+                }
+            }
+            curAirports.forEach(function (airport) {
+                let latlng = epLocs[airport];
+                markers.push(L.marker(latlng, {
+                    title: airport,
+                    icon: L.icon({
+                        iconUrl: '{{url_for("static", filename="img/marker3.png")}}',
+                        iconAnchor: [6, 6],
+                    })
+                }))
+            })
+            let l = L.layerGroup(markers)
+            mapMgr0.addLayer(l, 'markerAirports');
+        }
+
+        // 热力图灰度图 contours
+        function refreshContours() {
+            gContour.selectAll('*').remove();
+            heatmapGrayData = mapMgr0.layer('heatmapOri').getHeatGrayData();
+            gContour.selectAll("path")
+                .data(contours(heatmapGrayData))
+                .enter().append("path")
+                .attr("d", d3.geoPath(d3.geoIdentity().scale(1)))
+                .attr("fill", function (d) {
+                    return colorContours(d.value)
+                });
+        }
+
+        // 航班延误点 泊松分布 根据缩放等级调整
+        function getDataHeatmap(airports, oriDatetimeRange, endDatetimeRange) {
+            let zoom = mapMgr0.getZoom();
+            $.get({
+                url: '/heatTrans/data/heatmap',
+                data: {
+                    airports: airports.toString(),
+                    oriDatetimeRange: oriDatetimeRange.toString(),
+                    endDatetimeRange: endDatetimeRange.toString(),
+                    zoom: zoom
+                },
+                success: function (res) {
+                    // 成功 改变当前状态记录变量
+                    curAirports = airports;
+                    curOriDatetimeRange = oriDatetimeRange;
+                    curEndDatetimeRange = endDatetimeRange;
+                    curZoom = zoom;
+                    curDataOri = res[0];
+                    curDataEnd = res[1];
+                    console.log(curDataOri, curDataEnd)
+                    let epLocs = res[2];
+
+                    refreshHeatmapLayer(curDataOri, curDataEnd, zoom);
+                    refreshHeatmapField();
+                    refreshContours();
+                    refreshMarkers(epLocs);
+                    // airports.forEach(function (airport) {
+                    //     refreshCircos(mapMgr, airport);
+                    // })
+                },
+            })
+        }
+
+        // start: 查询表单所有组件初始化
+        function initCtrlForm() {
+            // 提交表单
+            form_heat.submit(function (event) {
+                event.preventDefault();
+                let valAirport = selAirport.val(),
+                    valDateOri = selDateOri.val(),
+                    valDateEnd = selDateEnd.val();
+                if (!(valAirport && valDateOri && valDateEnd)) {
+                    return null;
+                }
+                getDataHeatmap(valAirport, valDateOri, valDateEnd)
+            });
+
+            // 初始化机场select，查询获取机场列表
+            $.get({
+                url: '/airportsAll',
+                success: function (airportsAll) {
+                    console.log('airportsAll', airportsAll);
+                    let options = [];
+                    airportsAll.forEach(function (airport) {
+                        options[airport] = airport
+                    });
+                    initSelect(selAirport, options);
+                }
+            });
+
+            // 当航班sel改变时，根据航班类型sel和日期sel作相应的重新设置
+            selAirport.on('change', function (e) {
+                getSetSelDate();
+            });
+
+            // 当航班类型改变时，获取日期文件列表并设置日期文件select
+            selTypeFlight.on('change', function (e) {
+                getSetSelDate();
+            });
+        }
+        // end: 查询表单所有组件初始化
+
+        // 向服务器查询某机场某航班类型下的可用日期文件的日期列表
+        function getSetSelDate() {
+            let airport = selAirport.val(),
+                type_flight = selTypeFlight.val();
+            if (airport === 'null' || type_flight === 'null') {
+                return;
+            }
+
+            $.get({
+                url: '/availableDates',
+                data: {
+                    airport: airport,
+                    type_flight: type_flight,
+                },
+                success: function (res) {
+                    let options = [];
+                    res.forEach(function (date) {
+                        options[date] = date;
+                    })
+                    initSelect(selDateOri, options);
+                    initSelect(selDateEnd, options);
+                },
+            })
+        }
+
+        // 将服务器返回的原始数据，取出需要的字段
+        function packData(data) {
+            let address = [];
+            for (let i = 0; i < data.length; i++) {
+                address.push([data[i].epLoc[0], data[i].epLoc[1], data[i]['flightDelay']]);
+            }
+            return address;
+        }
+
+        // 地图中心和缩放等级变化后，重新获取热力核信息、绘制热力图、计算并绘制热力变化场，更新
+        function onMapChangeView(e) {
+            let vecMove = null;
+            if (e.type === 'dragend') {
+                vecMove = e.sourceTarget._newPos;
+                vecMove = [vecMove.x, vecMove.y];
+                svgContour.style('left', -vecMove[0])
+                    .style('top', -vecMove[1]);
+                lastSvgOffset = [-vecMove[0], -vecMove[1]]
+            }
+
+            // 获取交互地图位置并设置隐藏地图位置
+            let center = mapMgr0.getCenter();
+            let zoom = mapMgr0.getZoom();
+            mapMgr1.setView(center, zoom, {
+                animate: false
+            });
+            console.log('zoom map', zoom)
+            curZoom = zoom;
+
+            getDataHeatmap(curAirports, curOriDatetimeRange, curEndDatetimeRange);
+        }
+
+        // 创建用于计算光流法变化场的多线程Worker
+        function initWorkerHeatmapField(mapZoom) {
+            let worker;
+            if (window.Worker) {
+                worker = new Worker("{{url_for('static',filename='lib/WorkerGenHeatMapField.js')}}");
+                // 定义获取Worker结果后进行绘制的操作
+                worker.onmessage = function (e) {
+                    // console.log('data return from worker: ', e.data);
+                    let field = e.data.field;
+                    let heatLayer0 = mapMgr0.layer('heatmapOri');
+                    drawField(canvasField, field, heatLayer0.getHeatCanvas(), mapZoom);
+                }
+            } else {
+                worker = null;
+            }
+            return worker;
+        }
+
+        // 获取两个地图热力图数据, 计算光流法变化场
+        function genHeatmapField(mapZoom) {
+            // 终止并重新创建worker
+            if (workerHeatmapField) {
+                workerHeatmapField.terminate();
+            }
+            workerHeatmapField = initWorkerHeatmapField(mapZoom);
+
+            mapMgr0.showLayer('heatmapOri');
+
+            // 调用两个leaflet地图管理类绘制热力图，获得地图的canvas数据，计算变化场，绘制场
+            let heatLayer0 = mapMgr0.layer('heatmapOri'),
+                heatLayer1 = mapMgr1.layer('heatmapEnd');
+            if (!heatLayer0 || !heatLayer1) return null;
+
+            let heatCtx0 = heatLayer0.getHeatCtx(),
+                heatCtx1 = heatLayer1.getHeatCtx();
+            if (!heatCtx0 || !heatCtx1) return null;
+
+            // 因为mapCtx是CanvasRenderingContext2D对象，无法克隆到worker
+            // Dawn的StreamMapMgr中只使用调用它们getImageData生成的数据，
+
+            let mapImageData0 = heatCtx0.getImageData(0, 0, widMap, heiMap),
+                mapImageData1 = heatCtx1.getImageData(0, 0, widMap, heiMap),
+                mapGradient = heatLayer0.getHeatGradient(),
+                mapGrayData0 = heatLayer0.getHeatGrayData(),
+                mapGrayData1 = heatLayer1.getHeatGrayData();
+
+            mapMgr0.hideLayer('heatmapOri');
+
+            // 创建worker并传入用于用于生成变化场的热力图信息
+            workerHeatmapField.postMessage({
+                widthMap: widMap,
+                heightMap: heiMap,
+                mapImageData0: mapImageData0,
+                mapImageData1: mapImageData1,
+                mapGradient: mapGradient,
+                mapGrayData0: mapGrayData0,
+                mapGrayData1: mapGrayData1,
+            });
+        }
+
+        // 绘制场向量，判断向量终点是否落在t时间的热力图内，若是则代表热力收缩，绿色，若否代表热力扩张，红色
+        function drawField(canvas, field, heatLayerCanvas, mapZoom) {
+            let cw = canvas.width;
+            let ctx = canvas.getContext('2d');
+
+            let vec, pos, vecLen;
+            let lineDrawer = new LineDrawer(ctx);
+            let lineSize;
+
+            let heatLayerCanvasData = heatLayerCanvas.getContext('2d')
+                .getImageData(0, 0, canvas.width, canvas.height).data;
+
+            for (let i = 0; i < field.ux.length; i++) {
+                // if (Math.random() > 0.04) continue;  // 全体随机采样
+
+                vec = [-field.ux[i], -field.uy[i]];
+                vec = new Vector(vec[0], vec[1]);
+                vecLen = vec.norm(); // 向量长度
+                if (vecLen < 1 || vecLen > 4) continue; // 筛选长度
+                pos = [i % cw, i / cw]; // 当前点的像素坐标
+                vec = vec.mul(10);
+
+                // 在长度倍乘后判断向量终点所在canvas像素有无颜色
+                let outtaField = vecOuttaField(pos, vec, heatLayerCanvasData, cw);
+
+                let color = d3.scaleLinear().domain([0, 30]);
+                if (outtaField) {
+                    if (Math.random() > 0.017) continue // 随机采样
+                    vec = vec.mul(1.3);
+                    lineSize = 5;
+                    color.range(['red', 'red'])
+                } else {
+                    if (Math.random() > 0.012) continue // 随机采样
+                    // vec = vec.mul();
+                    lineSize = 2;
+                    color.range(['#66ff00', '#66ff00'])
+                }
+
+                // 向量长度映射颜色
+                // let color = d3.scaleLinear().domain([5, 25]).range(['green', 'red']);
+
+                lineDrawer.drawVector(pos, vec, lineSize, color);
+            }
+            console.log('drawField done');
+        }
+
+        // 判断向量终点是否在热力范围内
+        function vecOuttaField(pos, vec, canvasData, canvasWidth) {
+            let vec_end = [parseInt(pos[0] + vec.x), parseInt(pos[1] + vec.y)];
+            let id = (vec_end[1] * canvasWidth + vec_end[0]) * 4; // 二维坐标转对应canvasData的一维坐标
+            return canvasData[id + 3] < 120;
+        }
+        // ============================== 
+        // end: functions definition
+        // ==============================
+    </script>
+</body>
+
+</html>
